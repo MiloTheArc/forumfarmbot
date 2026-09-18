@@ -196,11 +196,21 @@ def get_expired_priorities():
 
 
 def find_priority_tag(forum: discord.ForumChannel):
+    """
+    Try to use the configured Priority Drop tag first.
+    If it does not exist, automatically fall back to the first available forum tag.
+    This prevents Discord error 40067 when the forum requires a tag.
+    """
     wanted = PRIORITY_TAG_NAME.casefold().strip()
+
     for tag in forum.available_tags:
         if tag.name.casefold().strip() == wanted:
-            return tag
-    return None
+            return tag, False
+
+    if forum.available_tags:
+        return forum.available_tags[0], True
+
+    return None, False
 
 
 def priority_emoji(priority: str) -> str:
@@ -361,7 +371,20 @@ async def farmpriority(
             )
             return
 
-        tag = find_priority_tag(channel)
+        tag, used_fallback_tag = find_priority_tag(channel)
+
+        if tag is None and getattr(channel, "flags", None) is not None:
+            # If the forum requires a tag but has no available tags configured,
+            # Discord will still reject the post. Give a clear error instead.
+            available_tags = list(channel.available_tags)
+            if not available_tags:
+                await interaction.followup.send(
+                    "❌ This forum requires a tag, but there are no forum tags available. "
+                    "Create at least one tag in Discord → Edit Channel → Tags.",
+                    ephemeral=True,
+                )
+                return
+
         tags = [tag] if tag else []
 
         title = f"COMMUNITY FARM PRIORITY — {label.upper()}"
@@ -397,9 +420,20 @@ async def farmpriority(
             "⚠️ Post created, but the item image could not be downloaded this time."
         )
 
+        if tag is None:
+            tag_status = "🏷️ No forum tag was applied."
+        elif used_fallback_tag:
+            tag_status = (
+                f"🏷️ `{PRIORITY_TAG_NAME}` was not found, so I used "
+                f"**{tag.name}** automatically."
+            )
+        else:
+            tag_status = f"🏷️ Tag applied: **{tag.name}**."
+
         await interaction.followup.send(
             f"✅ **{label}** priority created: <#{thread.id}>\n"
             f"{image_status}\n"
+            f"{tag_status}\n"
             f"🗑️ Auto-delete: **{hours} hours**.",
             ephemeral=True,
         )

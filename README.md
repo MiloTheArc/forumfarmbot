@@ -87,3 +87,14 @@ Creates the priority post.
 ### `/farmpriorityclose`
 
 Use inside a priority thread to remove it early.
+
+
+## V3 forum-tag fallback
+
+V3 prevents Discord error `40067: A tag is required to create a forum post in this channel`.
+
+The bot now:
+
+1. Tries to use the tag configured by `PRIORITY_TAG_NAME` (normally `Priority Drop`).
+2. If that tag does not exist, it automatically uses the first available tag in the Forum channel.
+3. If the Forum has no tags at all, the bot returns a clear message telling you to create at least one tag.
